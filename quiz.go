@@ -67,14 +67,10 @@ func parseCsvFileWithCSV(file *os.File) ([]QuestionAndAnswer) {
 
 func shuffleQuestionsAndAnswers(input []QuestionAndAnswer) (output []QuestionAndAnswer) {
 	rand.Seed(42)
-	var usedIndexes [] int
-	for i:=0; i < len(input); i++{
-		indexToBePlaced := rand.Intn(len(input))
-		for isInArray(indexToBePlaced, usedIndexes) {
-			indexToBePlaced = rand.Intn(len(input))
-		}
-		usedIndexes = append(usedIndexes, indexToBePlaced)
-		output = append(output, input[indexToBePlaced])
+	indicesToBeUsed:= rand.Perm(len(input))
+
+	for _, index := range (indicesToBeUsed) {
+		output = append(output, input[index])
 	}
 	return output
 }
