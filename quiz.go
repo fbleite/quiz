@@ -10,9 +10,10 @@ import (
 	"io"
 	"flag"
 	"time"
+	"math/rand"
 )
 
-const DEFAULT_QUIZ string = "./problems.csv"
+const DEFAULT_QUIZ string = "./problems-in-order.csv"
 const DELIMITER byte = '\n'
 
 type QuestionAndAnswer struct {
@@ -21,13 +22,17 @@ type QuestionAndAnswer struct {
 }
 
 func main () {
-	csvPath := flag.String("path", "./problems.csv", "a path")
+	csvPath := flag.String("path", DEFAULT_QUIZ, "a path")
 	timeoutSeconds := flag.Int("timeout", 30, "timeout for quiz")
+	shuffleQuestions := flag.Bool("shuffle", true, "Shuffle Questions")
 	flag.Parse()
 	fmt.Println(*csvPath)
 	file := openCsvFile(*csvPath)
 	parsedCsv := parseCsvFileWithCSV(file)
 	file.Close()
+	if (*shuffleQuestions) {
+		parsedCsv = shuffleQuestionsAndAnswers(parsedCsv)
+	}
 	numberOfQuestions, numberOfCorrectQuestions := askQuestions(parsedCsv, *timeoutSeconds)
 	printResults(numberOfQuestions, numberOfCorrectQuestions)
 
@@ -39,22 +44,6 @@ func openCsvFile(fileLocation string) (*os.File) {
 		log.Fatal(fileLocation + " : is not a valid file")
 	}
 	return file
-}
-
-func parseCsvFile(file *os.File) ([]QuestionAndAnswer) {
-	var parsedCsv []QuestionAndAnswer
-	reader := bufio.NewReader(file)
-
-	for {
-		line, err := reader.ReadString(DELIMITER)
-
-		if err != nil {
-			break
-		}
-
-		parsedCsv = append(parsedCsv, parseQuizLine(line))
-	}
-	return parsedCsv
 }
 
 func parseCsvFileWithCSV(file *os.File) ([]QuestionAndAnswer) {
@@ -76,13 +65,29 @@ func parseCsvFileWithCSV(file *os.File) ([]QuestionAndAnswer) {
 	return parsedCsv
 }
 
-
-func parseQuizLine(line string) (QuestionAndAnswer) {
-	index := strings.Index(line, ",")
-	return QuestionAndAnswer{
-		question:line[:index],
-		answer:line[index+1:len(line) -1],
+func shuffleQuestionsAndAnswers(input []QuestionAndAnswer) (output []QuestionAndAnswer) {
+	rand.Seed(42)
+	var usedIndexes [] int
+	for i:=0; i < len(input); i++{
+		indexToBePlaced := rand.Intn(len(input))
+		for isInArray(indexToBePlaced, usedIndexes) {
+			indexToBePlaced = rand.Intn(len(input))
+		}
+		usedIndexes = append(usedIndexes, indexToBePlaced)
+		output = append(output, input[indexToBePlaced])
 	}
+	return output
+}
+
+func isInArray(value int, array []int) (isInArray bool){
+	for _,arrayValue := range(array) {
+		if value == arrayValue {
+			return true
+		}
+
+
+	}
+	return false
 }
 
 func askQuestions(questions []QuestionAndAnswer, timeoutSeconds int) (numberOfQuestions int, numberOfCorrectQuestions int){
@@ -97,25 +102,30 @@ func askQuestions(questions []QuestionAndAnswer, timeoutSeconds int) (numberOfQu
 		var answer string
 		select {
 			case answer = <- ch : {
-				if (answer == questionAndAnswer.answer) {
+				if (isAnswerCorrect(answer, questionAndAnswer.answer)) {
 					numberOfCorrectQuestions ++
 				}
 			}
-			case <-time.After(time.Second * time.Duration(timeoutSeconds)): timeout = true
+		case <-time.After(time.Second * time.Duration(timeoutSeconds)):
+			timeout = true
 		}
 
-		if timeout{
+		if timeout {
 			break
 		}
 
 	}
-	return len (questions), numberOfCorrectQuestions
+	return len(questions), numberOfCorrectQuestions
+}
+
+func isAnswerCorrect(providedAnswer string, expectedAnswer string) bool {
+	return strings.TrimSpace(strings.ToLower(providedAnswer)) == strings.TrimSpace(strings.ToLower(expectedAnswer))
 }
 
 func askQuestion (index int, question string) (answer string) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Question #", index+1, question)
-	answer, _ = reader.ReadString('\n')
+	answer, _ = reader.ReadString(DELIMITER)
 	return answer[:len(answer)-1];
 }
 
